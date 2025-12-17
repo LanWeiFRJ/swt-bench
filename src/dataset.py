@@ -10,9 +10,12 @@ from src.constants import (
 )
 from src.constants import SWEbenchInstance
 
-FILTER_FILE_LITE = "dataset/filter_cases_lite.txt"
-FILTER_FILE_FULL = "dataset/filter_cases_full.txt"
-FILTER_FILE_VERIFIED = "dataset/filter_cases_verified.txt"
+# 获取项目根目录（src 目录的父目录）
+PROJECT_ROOT = pathlib.Path(__file__).parent.parent
+
+FILTER_FILE_LITE = PROJECT_ROOT / "dataset" / "filter_cases_lite.txt"
+FILTER_FILE_FULL = PROJECT_ROOT / "dataset" / "filter_cases_full.txt"
+FILTER_FILE_VERIFIED = PROJECT_ROOT / "dataset" / "filter_cases_verified.txt"
 
 def _filter_cases(dataset="all"):
     filter_cases = set()
@@ -25,7 +28,7 @@ def _filter_cases(dataset="all"):
     else:
         raise ValueError(f"Unknown dataset: {dataset}")
     for file in files:
-        with open(file) as f:
+        with open(file, encoding="utf-8") as f:
             filter_cases.update(f.read().splitlines(keepends=False))
     return frozenset(filter_cases)
 

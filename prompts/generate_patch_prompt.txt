@@ -1,0 +1,23 @@
+You are assisting with the SWT-Bench / SWE-bench benchmark.
+
+Repository: {repo}
+Instance ID: {instance_id}
+Base commit: {base_commit}
+
+Problem description (natural language):
+\"\"\"text
+{problem_statement}
+\"\"\"
+
+Task:
+Return a single unified git patch (diff format) that, when applied on top of the repository
+at the given base commit, adds or modifies tests in order to reproduce the described bug.
+
+Requirements:
+- The output MUST be valid unified diff that can be applied with git apply or patch.
+- Do NOT include explanations, markdown fences, or commentary outside the diff itself.
+- Do NOT include commands like git diff or git apply in the output.
+- Only output the raw diff, starting with lines like diff --git a/... b/... or
+  at least --- a/... and +++ b/....
+
+

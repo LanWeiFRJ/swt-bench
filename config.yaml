@@ -1,0 +1,20 @@
+generation:
+  # 数据集配置
+  dataset_name: "princeton-nlp/SWE-bench_Lite"  # HuggingFace 数据集名或本地路径
+  split: "test"                                # 使用的数据集 split
+  is_swt: false                                # 是否为 SWT 扩展数据
+  filter_swt: false                            # 是否过滤到官方 SWT 子集
+
+  # 模型与 Prompt 配置
+  model_name: "anthropic/claude-sonnet-4.5"                # OpenRouter 模型名
+  prompt_path: "prompts/generate_patch_prompt.txt"  # Prompt 模板路径
+
+  # 输出配置
+  output_dir: "predictions"                    # 预测文件输出目录
+
+  # 可选: 限定只对这些实例生成预测；为空或省略则对整个 split 运行
+  # instance_ids:
+  #   - "astropy__astropy-12907"
+  #   - "sympy__sympy-20590"
+
+
