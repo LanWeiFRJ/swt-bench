@@ -2,6 +2,7 @@ import datetime
 import json
 import logging
 import os
+import re
 import sys
 from pathlib import Path
 from typing import Dict, Any, List, Optional
@@ -23,16 +24,48 @@ if str(PROJECT_ROOT) not in sys.path:
 # 导入 dataset 模块
 from src.dataset import load_swebench_dataset  # type: ignore[import-untyped]
 
-# 配置日志
-logging.basicConfig(
-    level=logging.INFO,
-    format='%(asctime)s - %(name)s - %(levelname)s - %(message)s',
-    datefmt='%Y-%m-%d %H:%M:%S',
-    handlers=[
-        logging.StreamHandler(sys.stdout),
-    ],
-)
+# 配置日志 - 同时输出到终端和文件
+def setup_logging() -> Path:
+    """
+    配置日志系统，将日志同时输出到终端和文件。
+    返回日志文件路径。
+    """
+    # 创建 logs 目录（如果不存在）
+    logs_dir = PROJECT_ROOT / "logs"
+    logs_dir.mkdir(parents=True, exist_ok=True)
+    
+    # 生成带时间戳的日志文件名
+    timestamp = datetime.datetime.now(datetime.UTC).strftime("%Y%m%d-%H%M%S")
+    log_file = logs_dir / f"generate_predictions_{timestamp}.log"
+    
+    # 配置日志格式
+    log_format = '%(asctime)s - %(name)s - %(levelname)s - %(message)s'
+    date_format = '%Y-%m-%d %H:%M:%S'
+    formatter = logging.Formatter(log_format, datefmt=date_format)
+    
+    # 创建处理器：终端输出
+    console_handler = logging.StreamHandler(sys.stdout)
+    console_handler.setFormatter(formatter)
+    
+    # 创建处理器：文件输出
+    file_handler = logging.FileHandler(log_file, encoding='utf-8')
+    file_handler.setFormatter(formatter)
+    
+    # 配置根日志记录器
+    logging.basicConfig(
+        level=logging.INFO,
+        format=log_format,
+        datefmt=date_format,
+        handlers=[console_handler, file_handler],
+        force=True,  # 如果已经配置过日志，强制重新配置
+    )
+    
+    return log_file
+
+# 设置日志并获取日志文件路径
+log_file_path = setup_logging()
 logger = logging.getLogger(__name__)
+logger.info(f"日志将同时写入终端和文件: {log_file_path}")
 
 
 def load_config(config_path: Path) -> Dict[str, Any]:
@@ -127,6 +160,36 @@ def build_prompt(instance: Dict[str, Any], template: str) -> str:
         base_commit=instance["base_commit"],
         problem_statement=instance.get("problem_statement", ""),
     ).strip()
+
+
+def clean_markdown_code_blocks(text: str) -> str:
+    """
+    去除文本中的markdown代码块标记（```标记）。
+    
+    处理以下格式：
+    - ```diff\n...\n```
+    - ```git\n...\n```
+    - ```python\n...\n```
+    - ```\n...\n```（没有语言标识）
+    - 可能只有开头或只有结尾的标记
+    
+    返回清理后的文本。
+    """
+    # 去除首尾空白，便于处理
+    text = text.strip()
+    
+    # 去除开头的markdown代码块标记（可能带语言标识如diff、git、python等）
+    # 匹配行首的```后跟可选的单词（语言标识）和可选的换行
+    text = re.sub(r'^```[\w]*\s*\n?', '', text, flags=re.MULTILINE)
+    
+    # 去除结尾的markdown代码块标记
+    # 匹配可选的换行后跟```和可选的空白
+    text = re.sub(r'\n?```\s*$', '', text, flags=re.MULTILINE)
+    
+    # 再次去除首尾空白
+    text = text.strip()
+    
+    return text
 
 
 def call_openrouter(
@@ -310,6 +373,10 @@ def generate_predictions_for_dataset(
                 logger.info(f"Calling OpenRouter API for {instance_id}...")
                 patch = call_openrouter(api_key, prompt, model=model_name)
                 logger.info(f"Successfully generated patch for {instance_id} (length: {len(patch)} characters)")
+                
+                # 清理markdown代码块标记
+                patch = clean_markdown_code_blocks(patch)
+                logger.debug(f"Cleaned patch length: {len(patch)} characters")
                 
                 record = {
                     "instance_id": instance_id,
