@@ -7,7 +7,9 @@ if TYPE_CHECKING:
 
 import docker
 import json
+import logging
 import resource
+from pathlib import Path
 
 from argparse import ArgumentParser
 from typing import List, Tuple, Optional, Dict, Literal
@@ -19,7 +21,11 @@ from src.docker_utils import (
 
 from src.dataset import get_dataset_from_preds, get_gold_predictions
 from src.utils import str2bool
-from run_evaluation import run_instances, make_run_report
+from src.global_logging import setup_global_logging, get_logger
+from src.run_evaluation import run_instances, make_run_report
+
+# 获取项目根目录（main.py 位于 src/ 目录下）
+PROJECT_ROOT = Path(__file__).parent.parent
 
 def run(
         dataset_name: str,
@@ -45,6 +51,9 @@ def run(
     """
     Run evaluation harness for the given dataset and predictions.
     """
+    # 初始化全局日志系统
+    logger = get_logger(__name__)
+    
     # set open file limit
     assert len(run_id) > 0, "Run ID must be provided"
     resource.setrlimit(resource.RLIMIT_NOFILE, (open_file_limit, open_file_limit))
@@ -52,7 +61,7 @@ def run(
 
     # load predictions as map of instance_id to prediction
     if predictions_path == 'gold':
-        print("Using gold tests - ignoring predictions_path")
+        logger.info("Using gold tests - ignoring predictions_path")
         predicted_tests = get_gold_predictions(dataset_name, split, is_swt, filter_swt)
     else:
         if predictions_path.endswith(".json"):
@@ -69,11 +78,11 @@ def run(
     dataset = get_dataset_from_preds(dataset_name, split, instance_ids, predicted_tests, run_id, is_swt=is_swt, filter_swt=filter_swt)
     full_dataset = get_dataset_from_preds(dataset_name, split, instance_ids, predicted_tests, run_id, False, is_swt=is_swt, filter_swt=filter_swt)
     existing_images = list_images(client)
-    print(f"Running {len(dataset)} unevaluated instances...")
+    logger.info(f"Running {len(dataset)} unevaluated instances...")
     if not dataset:
-        print("No instances to run.")
+        logger.info("No instances to run.")
     elif skip_eval:
-        print("Skipping evaluation and only generating reports")
+        logger.info("Skipping evaluation and only generating reports")
     else:
         # build environment images + run instances
         # build_env_images(client, dataset, force_rebuild, max_workers)
@@ -136,4 +145,15 @@ if __name__ == "__main__":
     )
     args = parser.parse_args()
 
-    run(**vars(args))
+    # 在程序入口初始化全局日志系统
+    log_dir = setup_global_logging(PROJECT_ROOT, run_id=args.run_id)
+    logger = get_logger(__name__)
+    logger.info(f"Starting evaluation run with run_id: {args.run_id}")
+    logger.info(f"Global logs directory: {log_dir}")
+
+    try:
+        run(**vars(args))
+        logger.info("Evaluation run completed successfully")
+    except Exception as e:
+        logger.error(f"Evaluation run failed: {e}", exc_info=True)
+        raise

@@ -34,6 +34,9 @@ from src.utils import Locker, setup_logger, close_logger
 
 ansi_escape = re.compile(r"\x1B\[[0-?]*[ -/]*[@-~]")
 
+# 获取模块级别的 logger
+logger = logging.getLogger(__name__)
+
 
 class BuildImageError(Exception):
     def __init__(self, image_name, message, logger):
@@ -214,12 +217,12 @@ def build_base_images(
                 # Remove the base image if it exists and force rebuild is enabled
                 remove_image(client, image_name, "quiet")
             else:
-                print(f"Base image {image_name} already exists, skipping build.")
+                logger.info(f"Base image {image_name} already exists, skipping build.")
                 continue
         except docker.errors.ImageNotFound:
             pass
         # Build the base image (if it does not exist or force rebuild is enabled)
-        print(f"Building base image ({image_name})")
+        logger.info(f"Building base image ({image_name})")
         build_image(
             image_name=image_name,
             setup_scripts={},
@@ -229,7 +232,7 @@ def build_base_images(
             build_dir=BASE_IMAGE_BUILD_DIR / image_name.replace(":", "__"),
             build_mode=build_mode,
         )
-    print("Base images built successfully.")
+    logger.info("Base images built successfully.")
 
 
 def build_base_image_from_exec_spec(
@@ -258,14 +261,14 @@ def build_base_image_from_exec_spec(
             # Check if the base image already exists
             client.images.get(image_name)
 
-            print(f"Base image {image_name} already exists, skipping build.")
+            logger.info(f"Base image {image_name} already exists, skipping build.")
             return
         except docker.errors.ImageNotFound:
             pass
 
 
         # Build the base image (if it does not exist or force rebuild is enabled)
-        print(f"Building base image {image_name}")
+        logger.info(f"Building base image {image_name}")
         build_image(
             image_name=image_name,
             setup_scripts={},
@@ -276,7 +279,7 @@ def build_base_image_from_exec_spec(
             build_mode=build_mode,
         )
 
-        print(f"Base image {image_name} built successfully.")
+        logger.info(f"Base image {image_name} built successfully.")
 
 
 def build_env_image_from_exec_spec(
@@ -321,13 +324,13 @@ def build_env_image_from_exec_spec(
                     # Remove instance images that depend on this environment image
                     remove_image(client, dep.image_id, "quiet")
                 remove_image(client, exec_spec.env_image_key, "quiet")
-            print(f"Env image {image_name} already exists, skipping build.")
+            logger.info(f"Env image {image_name} already exists, skipping build.")
             return
         except docker.errors.ImageNotFound:
             pass
 
         # Build the env image (if it does not exist or force rebuild is enabled)
-        print(f"Building env image {image_name}")
+        logger.info(f"Building env image {image_name}")
         build_image(
             image_name=image_name,
             setup_scripts={"setup_env.sh": setup_script},
@@ -338,7 +341,7 @@ def build_env_image_from_exec_spec(
             build_mode=build_mode,
         )
 
-        print(f"Env image {image_name} built successfully.")
+        logger.info(f"Env image {image_name} built successfully.")
 
 
 def get_env_configs_to_build(
@@ -420,9 +423,9 @@ def build_env_images(
     build_base_images(client, dataset, force_rebuild, build_mode)
     configs_to_build = get_env_configs_to_build(client, dataset)
     if len(configs_to_build) == 0:
-        print("No environment images need to be built.")
+        logger.info("No environment images need to be built.")
         return
-    print(f"Total environment images to build: {len(configs_to_build)}")
+    logger.info(f"Total environment images to build: {len(configs_to_build)}")
 
     # Build the environment images
     successful, failed = list(), list()
@@ -452,21 +455,19 @@ def build_env_images(
                     future.result()
                     successful.append(futures[future])
                 except BuildImageError as e:
-                    print(f"BuildImageError {e.image_name}")
-                    traceback.print_exc()
+                    logger.error(f"BuildImageError {e.image_name}", exc_info=True)
                     failed.append(futures[future])
                     continue
                 except Exception as e:
-                    print(f"Error building image")
-                    traceback.print_exc()
+                    logger.error(f"Error building image", exc_info=True)
                     failed.append(futures[future])
                     continue
 
     # Show how many images failed to build
     if len(failed) == 0:
-        print("All environment images built successfully.")
+        logger.info("All environment images built successfully.")
     else:
-        print(f"{len(failed)} environment images failed to build.")
+        logger.warning(f"{len(failed)} environment images failed to build.")
 
     # Return the list of (un)successfuly built images
     return successful, failed
@@ -499,8 +500,8 @@ def build_instance_images(
         # Don't build images for instances that depend on failed-to-build env images
         dont_run_specs = [spec for spec in test_specs if spec.env_image_key in env_failed]
         test_specs = [spec for spec in test_specs if spec.env_image_key not in env_failed]
-        print(f"Skipping {len(dont_run_specs)} instances - due to failed env image builds")
-    print(f"Building instance images for {len(test_specs)} instances")
+        logger.warning(f"Skipping {len(dont_run_specs)} instances - due to failed env image builds")
+    logger.info(f"Building instance images for {len(test_specs)} instances")
     successful, failed = list(), list()
 
     # Build the instance images
@@ -528,21 +529,19 @@ def build_instance_images(
                     future.result()
                     successful.append(futures[future])
                 except BuildImageError as e:
-                    print(f"BuildImageError {e.image_name}")
-                    traceback.print_exc()
+                    logger.error(f"BuildImageError {e.image_name}", exc_info=True)
                     failed.append(futures[future])
                     continue
                 except Exception as e:
-                    print(f"Error building image")
-                    traceback.print_exc()
+                    logger.error(f"Error building image", exc_info=True)
                     failed.append(futures[future])
                     continue
 
     # Show how many images failed to build
     if len(failed) == 0:
-        print("All instance images built successfully.")
+        logger.info("All instance images built successfully.")
     else:
-        print(f"{len(failed)} instance images failed to build.")
+        logger.warning(f"{len(failed)} instance images failed to build.")
 
     # Return the list of (un)successfuly built images
     return successful, failed

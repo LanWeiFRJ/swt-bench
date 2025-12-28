@@ -406,28 +406,58 @@ def report_results(
     logger, report_path = setup_logging(log_dir, instance_id)
 
     # Get report from test output
-    logger.info(f"Grading answer for {instance_id}...")
+    logger.info(f"=" * 80)
+    logger.info(f"开始评分 (实例: {instance_id})")
+    logger.info(f"  Patch ID: {patch_id}")
+    logger.info(f"  Run ID: {run_id}")
+    logger.info(f"  仓库: {repo}")
+    logger.info(f"  执行模式: {exec_mode}")
+    logger.info(f"  日志目录: {log_dir}")
+    logger.info(f"  报告路径: {report_path}")
+    
     test_results = []
     coverage_results = []
-
     patch_applied = []
+    
     if output_paths is not None:
-        for output_path in output_paths:
+        logger.info(f"  处理 {len(output_paths)} 个输出文件:")
+        patch_names = ["pred_pre", "pred_post", "gold_pre", "gold_post", "base_pre", "base_post"]
+        for idx, output_path in enumerate(output_paths):
+            patch_name = patch_names[idx] if idx < len(patch_names) else f"output_{idx}"
+            logger.info(f"    [{idx+1}/{len(output_paths)}] {patch_name}: {output_path}")
+            
+            if not Path(output_path).exists():
+                logger.warning(f"      输出文件不存在，跳过")
+                test_results.append({})
+                coverage_results.append({})
+                patch_applied.append(False)
+                continue
+            
+            logger.info(f"      解析测试结果...")
             test_result, patch_applied_ = get_logs_eval(output_path, repo, exec_mode)
             patch_applied.append(patch_applied_)
+            logger.info(f"      Patch应用状态: {'✓ 成功' if patch_applied_ else '✗ 失败'}")
+            logger.info(f"      测试结果数量: {len(test_result)}")
+            
+            logger.info(f"      解析覆盖率...")
             coverage_result = get_coverage_eval(output_path)
+            coverage_files = len(coverage_result) if coverage_result else 0
+            logger.info(f"      覆盖率文件数: {coverage_files}")
+            
             test_results.append(test_result)
             coverage_results.append(coverage_result)
-
+        
+        logger.info(f"  生成预测报告...")
         report = get_pred_report(
             instance_id=instance_id,
-            patch_applied=patch_applied[0],
+            patch_applied=patch_applied[0] if patch_applied else False,
             golden_code_patch=golden_code_patch,
             test_results=test_results,
             coverage_results=coverage_results,
             include_tests_status=True,
         )
     else:
+        logger.warning(f"  未提供输出路径，生成空报告")
         report = get_pred_report(
             instance_id=instance_id,
             patch_applied=False,
@@ -436,14 +466,40 @@ def report_results(
             coverage_results=None,
             include_tests_status=True,
         )
-    logger.info(
-        f"report: {report}\n"
-        f"Result for {instance_id}: resolved: {report[instance_id]['resolved']}"
-    )
+    
+    # Log detailed report information
+    report_data = report.get(instance_id, {})
+    logger.info(f"")
+    logger.info(f"  评分结果:")
+    logger.info(f"    Patch存在: {report_data.get('patch_exists', False)}")
+    logger.info(f"    Patch成功应用: {report_data.get('patch_successfully_applied', False)}")
+    logger.info(f"    已解决 (resolved): {report_data.get('resolved', False)}")
+    
+    coverage_pred = report_data.get('coverage_pred')
+    coverage_gold = report_data.get('coverage_gold')
+    coverage_base = report_data.get('coverage_base')
+    logger.info(f"")
+    logger.info(f"  覆盖率:")
+    logger.info(f"    预测覆盖率: {coverage_pred if coverage_pred is not None else 'N/A'}")
+    logger.info(f"    黄金覆盖率: {coverage_gold if coverage_gold is not None else 'N/A'}")
+    logger.info(f"    基础覆盖率: {coverage_base if coverage_base is not None else 'N/A'}")
+    
+    coverage_delta_pred = report_data.get('coverage_delta_pred')
+    coverage_delta_gold = report_data.get('coverage_delta_gold')
+    if coverage_delta_pred is not None:
+        logger.info(f"    预测覆盖率变化: {coverage_delta_pred:+.4f}")
+    if coverage_delta_gold is not None:
+        logger.info(f"    黄金覆盖率变化: {coverage_delta_gold:+.4f}")
+    
+    logger.info(f"")
+    logger.info(f"  最终结果: {'✓ 已解决' if report_data.get('resolved', False) else '✗ 未解决'}")
 
     # Write report to report.json
+    logger.info(f"  保存报告到文件: {report_path}")
     with open(report_path, "w") as f:
         f.write(json.dumps(report, indent=4))
+    logger.info(f"  报告已保存")
+    logger.info(f"=" * 80)
 
     return report
 

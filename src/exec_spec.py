@@ -332,8 +332,23 @@ class ExecSpec:
             reqs_commands.append(f"rm {path_to_reqs}")
         else:
             # Create environment + install dependencies
-            cmd = f"conda create -n {env_name} python={install['python']} {pkgs} -y"
-            reqs_commands.append(cmd)
+            # Check if packages contain version constraints (e.g., setuptools==38.2.4)
+            # If so, create environment first, then use pip to install packages
+            # This is necessary because some packages may not be available in conda for ARM64
+            # Check if any package specification contains version constraints (==, >=, <=, >, <, !=)
+            has_version_constraints = bool(re.search(r'[<>=!]=', pkgs))
+            
+            if has_version_constraints:
+                # Create environment with python only
+                cmd = f"conda create -n {env_name} python={install['python']} -y"
+                reqs_commands.append(cmd)
+                # Activate environment and install packages via pip
+                cmd = f"conda activate {env_name} && python -m pip install {pkgs}"
+                reqs_commands.append(cmd)
+            else:
+                # No version constraints, can install via conda directly
+                cmd = f"conda create -n {env_name} python={install['python']} {pkgs} -y"
+                reqs_commands.append(cmd)
 
         return reqs_commands
 

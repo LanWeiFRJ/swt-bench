@@ -1,6 +1,7 @@
 import pathlib
 import base64
 import tempfile
+import logging
 
 import docker
 import os
@@ -15,6 +16,9 @@ from typing import Literal
 from docker.models.containers import Container
 
 BuildMode = Literal["cli", "api"]
+
+# 获取模块级别的 logger
+logger = logging.getLogger(__name__)
 
 HEREDOC_DELIMITER = "EOF_1399519320"  # different from dataset HEREDOC_DELIMITERs!
 
@@ -259,7 +263,7 @@ def find_dependent_images(client: docker.DockerClient, image_name: str):
         base_image = client.images.get(image_name)
         base_image_id = base_image.id
     except docker.errors.ImageNotFound:
-        print(f"Base image {image_name} not found.")
+        logger.warning(f"Base image {image_name} not found.")
         return []
 
     for image in all_images:
@@ -307,16 +311,16 @@ def clean_images(
     """
     images = list_images(client)
     removed = 0
-    print(f"Cleaning cached images...")
+    logger.info(f"Cleaning cached images...")
     for image_name in images:
         if should_remove(image_name, cache_level, clean, prior_images):
             try:
                 remove_image(client, image_name, "quiet")
                 removed += 1
             except Exception as e:
-                print(f"Error removing image {image_name}: {e}")
+                logger.error(f"Error removing image {image_name}: {e}")
                 continue
-    print(f"Removed {removed} images.")
+    logger.info(f"Removed {removed} images.")
 
 
 def should_remove(

@@ -52,8 +52,8 @@ def setup_logging() -> Path:
     file_handler.setFormatter(formatter)
     
     # 配置根日志记录器
-    logging.basicConfig(
-        level=logging.INFO,
+logging.basicConfig(
+    level=logging.INFO,
         format=log_format,
         datefmt=date_format,
         handlers=[console_handler, file_handler],

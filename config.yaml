@@ -6,7 +6,8 @@ generation:
   filter_swt: false                            # 是否过滤到官方 SWT 子集
 
   # 模型与 Prompt 配置
-  model_name: "anthropic/claude-sonnet-4.5"                # OpenRouter 模型名
+  # model_name: "anthropic/claude-sonnet-4.5"  
+  model_name: "openai/gpt-5"              # OpenRouter 模型名
   prompt_path: "prompts/generate_patch_prompt.txt"  # Prompt 模板路径
 
   # 输出配置
