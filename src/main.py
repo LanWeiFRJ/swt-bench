@@ -152,7 +152,7 @@ if __name__ == "__main__":
     logger.info(f"Global logs directory: {log_dir}")
 
     try:
-        run(**vars(args))
+    run(**vars(args))
         logger.info("Evaluation run completed successfully")
     except Exception as e:
         logger.error(f"Evaluation run failed: {e}", exc_info=True)
